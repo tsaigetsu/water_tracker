@@ -10,6 +10,8 @@ import * as Device from 'expo-device';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Glass from '../../components/Glass';
 import MenuModal from '../../components/Modal';
+import { useColorScheme } from 'react-native';
+
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -41,6 +43,8 @@ export default function HomeScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [infoModal, setInfoModal] = useState<null | 'about' | 'help'>(null);
 
+  const [selectedDrink, setSelectedDrink] = useState('вода');
+
   const TIMEOUT_DURATION = 7000;
 
   const calculateWaterGoal = (weightKg: number): number => {
@@ -51,6 +55,35 @@ export default function HomeScreen() {
 
   const waterPercent = Math.min(water / waterGoal, 1);
 
+  const colorScheme = useColorScheme(); // 'light' | 'dark' | null
+  const isDark = colorScheme === 'dark';
+  const styles = getStyles(isDark);
+
+  const [drinkProgress, setDrinkProgress] = useState({
+    вода: 0,
+    сок: 0,
+    пиво: 0,
+    вино: 0,
+    энергетик: 0,
+  });
+
+  const drinkColors: { [key: string]: string } = isDark
+    ? {
+        вода: '#00b4d8',
+        сок: '#f4a261',
+        пиво: '#e9c46a',
+        вино: '#9d4edd',
+        энергетик: '#ff006e',
+      }
+    : {
+        вода: '#0077b6',
+        сок: '#e76f51',
+        пиво: '#f9c74f',
+        вино: '#8338ec',
+        энергетик: '#ff0054',
+      };
+
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -59,7 +92,10 @@ export default function HomeScreen() {
         const g = await AsyncStorage.getItem('gender');
         const wake = await AsyncStorage.getItem('wakeTime');
         const sleep = await AsyncStorage.getItem('sleepTime');
-        const storedWater = await AsyncStorage.getItem('water');
+        const storedProgress = await AsyncStorage.getItem('drinkProgress');
+        if (storedProgress) {
+          setDrinkProgress(JSON.parse(storedProgress));
+        }
         const weightNum = parseInt(weight);
 
         if (h && w && g && wake && sleep) {
@@ -82,8 +118,8 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    AsyncStorage.setItem('water', water.toString());
-  }, [water]);
+  AsyncStorage.setItem('drinkProgress', JSON.stringify(drinkProgress));
+}, [drinkProgress]);
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -203,6 +239,10 @@ export default function HomeScreen() {
 
   const handleAddWater = (amount: number) => {
     setWater(prev => prev + amount);
+    setDrinkProgress(prev => ({
+      ...prev,
+      [selectedDrink]: prev[selectedDrink] + amount,
+    }));
     setModalVisible(false);
     setCustomAmount('');
   };
@@ -218,25 +258,60 @@ export default function HomeScreen() {
 
   if (setupStep === 0) {
     return (
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.container}>
-          <Text style={styles.title}>Параметры пользователя</Text>
-          <TextInput placeholder="Рост (см)" placeholderTextColor="#666" keyboardType="numeric" style={styles.input} value={height} onChangeText={setHeight} />
-          <TextInput placeholder="Вес (кг)" placeholderTextColor="#666" keyboardType="numeric" style={styles.input} value={weight} onChangeText={setWeight} />
-          <View style={{ flexDirection: 'row', marginVertical: 20 }}>
-            <TouchableOpacity style={[styles.genderButton, gender === 'male' && styles.genderButtonSelected]} onPress={() => setGender('male')}>
-              <Text style={gender === 'male' ? styles.genderTextSelected : undefined}>Мужской</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.genderButton, gender === 'female' && styles.genderButtonSelected]} onPress={() => setGender('female')}>
-              <Text style={gender === 'female' ? styles.genderTextSelected : undefined}>Женский</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={styles.button} onPress={handleSaveParams}>
-            <Text style={styles.buttonText}>Далее</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableWithoutFeedback>
-    );
+  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <View style={styles.container}>
+      <Text style={styles.title}>Параметры пользователя</Text>
+
+      <TextInput
+        placeholder="Рост (см)"
+        placeholderTextColor="#666"
+        keyboardType="numeric"
+        style={styles.input}
+        value={height}
+        onChangeText={setHeight}
+      />
+
+      <TextInput
+        placeholder="Вес (кг)"
+        placeholderTextColor="#666"
+        keyboardType="numeric"
+        style={styles.input}
+        value={weight}
+        onChangeText={setWeight}
+      />
+
+      <View style={{ flexDirection: 'row', marginVertical: 20 }}>
+        <TouchableOpacity
+          style={[
+            styles.genderButton,
+            gender === 'male' && styles.genderButtonSelected,
+          ]}
+          onPress={() => setGender('male')}
+        >
+          <Text style={gender === 'male' ? styles.genderTextSelected : styles.genderText}>
+            Мужской
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.genderButton,
+            gender === 'female' && styles.genderButtonSelected,
+          ]}
+          onPress={() => setGender('female')}
+        >
+          <Text style={gender === 'female' ? styles.genderTextSelected : styles.genderText}>
+            Женский
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity style={styles.button} onPress={handleSaveParams}>
+        <Text style={styles.buttonText}>Далее</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableWithoutFeedback>
+);
   }
 
   if (setupStep === 1) {
@@ -274,8 +349,10 @@ export default function HomeScreen() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+  <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <View style={{ flex: 1 }}>
       <View style={styles.container}>
+        {/* Кнопка меню */}
         <TouchableOpacity
           style={[styles.button, { position: 'absolute', top: 40, right: 20 }]}
           onPress={() => setMenuVisible(true)}
@@ -283,165 +360,252 @@ export default function HomeScreen() {
           <Text style={styles.buttonText}>☰</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>💧 Водный трекер</Text>
+        {/* Фон-заливка */}
+        {Object.entries(drinkProgress).map(([drink, amount]) => {
+          const percent = Math.min(amount / waterGoal, 1);
+          if (percent === 0) return null;
+          return (
+            <View
+              key={drink}
+              style={[
+                styles.fillBackground,
+                {
+                  height: `${percent * 100}%`,
+                  backgroundColor: drinkColors[drink as keyof typeof drinkColors],
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: -1,
+                  opacity: 0.6,
+                }
+              ]}
+            />
+          );
+        })}
 
-        <Glass fillPercent={waterPercent} />
-        <Text style={styles.counter}>{water} мл из {waterGoal} мл</Text>
+        {/* Выбор напитка */}
+        <View style={styles.drinkSelector}>
+          {['вода', 'сок', 'пиво', 'вино', 'энергетик'].map((drink) => (
+            <TouchableOpacity
+              key={drink}
+              style={[
+                styles.drinkButton,
+                selectedDrink === drink && styles.drinkButtonSelected
+              ]}
+              onPress={() => setSelectedDrink(drink)}
+            >
+              <Text
+                style={selectedDrink === drink
+                  ? styles.drinkTextSelected
+                  : styles.drinkText}
+              >
+                {drink}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
+        {/* Счетчик */}
+        <Text style={styles.counter}>
+          {water} мл из {waterGoal} мл
+        </Text>
+
+        {/* Кнопка добавления */}
         <TouchableOpacity style={styles.button} onPress={() => setModalVisible(true)}>
           <Text style={styles.buttonText}>Добавить воду</Text>
         </TouchableOpacity>
+      </View>
 
-        <Modal visible={modalVisible} transparent animationType="slide">
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalBackground}>
+            <View style={styles.modalContent}>
+              <Text style={{ fontSize: 18, marginBottom: 10 }}>Сколько выпито?</Text>
+              <TextInput
+                placeholder="Свое значение"
+                placeholderTextColor="#666"
+                keyboardType="numeric"
+                style={styles.input}
+                value={customAmount}
+                onChangeText={setCustomAmount}
+                onSubmitEditing={() => {
+                  Keyboard.dismiss();
+                  handleAddCustom();
+                }}
+              />
+              <Pressable style={styles.modalButton} onPress={handleAddCustom}>
+                <Text>Добавить</Text>
+              </Pressable>
+              <Pressable onPress={() => setModalVisible(false)}>
+                <Text style={{ marginTop: 10, color: '#888' }}>Отмена</Text>
+              </Pressable>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      <MenuModal
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onEditUser={() => {
+          setSetupStep(0);
+          setMenuVisible(false);
+        }}
+      />
+
+      {/* Форма помощи (если активна) */}
+      {infoModal === 'help' && (
+        <Modal visible transparent animationType="slide">
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.modalBackground}>
               <View style={styles.modalContent}>
-                <Text style={{ fontSize: 18, marginBottom: 10 }}>Сколько выпито?</Text>
-                <TextInput
-                  placeholder="Свое значение"
-                  placeholderTextColor="#666"
-                  keyboardType="numeric"
-                  style={styles.input}
-                  value={customAmount}
-                  onChangeText={setCustomAmount}
-                  onSubmitEditing={() => {
-                    Keyboard.dismiss();
-                    handleAddCustom();
-                  }}
-                />
-                <Pressable style={styles.modalButton} onPress={handleAddCustom}>
-                  <Text>Добавить</Text>
-                </Pressable>
-                <Pressable onPress={() => setModalVisible(false)}>
-                  <Text style={{ marginTop: 10, color: '#888' }}>Отмена</Text>
-                </Pressable>
+                <Text style={styles.title}>Помощь</Text>
+                <TextInput placeholder="Имя" placeholderTextColor="#666" style={styles.input} />
+                <TextInput placeholder="Почта" placeholderTextColor="#666" style={styles.input} keyboardType="email-address" />
+                <TextInput placeholder="Опишите проблему" placeholderTextColor="#666" style={[styles.input, { height: 100 }]} multiline />
+                <TouchableOpacity style={styles.button} onPress={() => setInfoModal(null)}>
+                  <Text style={styles.buttonText}>Отправить</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setInfoModal(null)}>
+                  <Text style={{ color: '#888', marginTop: 10 }}>Закрыть</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </TouchableWithoutFeedback>
         </Modal>
-
-        <MenuModal
-          visible={menuVisible}
-          onClose={() => setMenuVisible(false)}
-          onEditUser={() => {
-            setSetupStep(0);
-            setMenuVisible(false);
-          }}
-          onHelp={() => {
-            setInfoModal('help');
-            setMenuVisible(false);
-          }}
-          onAbout={() => {
-            setInfoModal('about');
-            setMenuVisible(false);
-          }}
-        />
-
-        {/* Форма помощи (если активна) */}
-        {infoModal === 'help' && (
-          <Modal visible transparent animationType="slide">
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.modalBackground}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.title}>Помощь</Text>
-                  <TextInput placeholder="Имя" placeholderTextColor="#666" style={styles.input} />
-                  <TextInput placeholder="Почта" placeholderTextColor="#666" style={styles.input} keyboardType="email-address" />
-                  <TextInput placeholder="Опишите проблему" placeholderTextColor="#666" style={[styles.input, { height: 100 }]} multiline />
-                  <TouchableOpacity style={styles.button} onPress={() => setInfoModal(null)}>
-                    <Text style={styles.buttonText}>Отправить</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setInfoModal(null)}>
-                    <Text style={{ color: '#888', marginTop: 10 }}>Закрыть</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
-        )}
-      </View>
-    </TouchableWithoutFeedback>
-  );
+      )}
+    </View>
+  </TouchableWithoutFeedback>
+);
 }
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#a0e3f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 28,
-    marginBottom: 40,
-    fontWeight: 'bold',
-  },
-  counter: {
-    marginTop: 20,
-    fontSize: 18,
-  },
-  button: {
-    marginTop: 30,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#0077b6',
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  modalBackground: {
-    flex: 1,
-    backgroundColor: '#00000088',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalButton: {
-    padding: 10,
-    marginVertical: 5,
-    backgroundColor: '#e0f7fa',
-    borderRadius: 5,
-    width: 140,
-    alignItems: 'center',
-  },
-  input: {
-    borderWidth: 2,
-    borderColor: '#000',
-    borderRadius: 5,
-    width: 140,
-    padding: 8,
-    marginVertical: 10,
-    textAlign: 'center',
-  },
-  genderButton: {
-    borderWidth: 2,
-    borderColor: '#0077b6',
-    padding: 12,
-    marginHorizontal: 10,
-    borderRadius: 8,
-  },
-  genderButtonSelected: {
-    backgroundColor: '#0077b6',
-  },
-  genderTextSelected: {
-    color: '#fff',
-  },
-  timePickerButton: {
-    marginTop: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: '#0077b6',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  timeText: {
-    fontSize: 16,
-  },
-});
+const getStyles = (isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: isDark ? '#000' : '#fff',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+    },
+    title: {
+      fontSize: 28,
+      marginBottom: 40,
+      fontWeight: 'bold',
+      color: isDark ? '#fff' : '#000',
+      textAlign: 'center',
+    },
+    fillBackground: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: -1,
+    },
+    counter: {
+      marginTop: 20,
+      fontSize: 18,
+      color: isDark ? '#fff' : '#000',
+    },
+    button: {
+      marginTop: 30,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      backgroundColor: isDark ? '#1e90ff' : '#0077b6',
+      borderRadius: 8,
+    },
+    buttonText: {
+      color: '#fff',
+      fontSize: 16,
+    },
+    modalBackground: {
+      flex: 1,
+      backgroundColor: '#00000088',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContent: {
+      backgroundColor: isDark ? '#222' : '#fff',
+      padding: 20,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    modalButton: {
+      padding: 10,
+      marginVertical: 5,
+      backgroundColor: isDark ? '#333' : '#e0f7fa',
+      borderRadius: 5,
+      width: 140,
+      alignItems: 'center',
+    },
+    input: {
+      borderWidth: 2,
+      borderColor: isDark ? '#fff' : '#000',
+      borderRadius: 5,
+      width: 140,
+      padding: 8,
+      marginVertical: 10,
+      textAlign: 'center',
+      color: isDark ? '#fff' : '#000',
+      backgroundColor: isDark ? '#111' : '#fff',
+    },
+    genderButton: {
+      borderWidth: 2,
+      borderColor: isDark ? '#fff' : '#0077b6',
+      padding: 12,
+      marginHorizontal: 10,
+      borderRadius: 8,
+      backgroundColor: 'transparent', // фон по умолчанию
+    },
+    genderText: {
+      color: '#fff', // белый текст по умолчанию
+    },
+    genderButtonSelected: {
+      backgroundColor: '#fff'
+    },
+    genderTextSelected: {
+      color: '#000',
+    },
+    timePickerButton: {
+      marginTop: 10,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderWidth: 1,
+      borderColor: isDark ? '#fff' : '#0077b6',
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    timeText: {
+      fontSize: 16,
+      color: isDark ? '#fff' : '#000',
+    },
+    drinkSelector: {
+      flexDirection: 'column',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      marginBottom: 20,
+    },
+
+    drinkButton: {
+      borderWidth: 1,
+      borderColor: '#fff',
+      borderRadius: 20,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      margin: 6,
+    },
+
+    drinkButtonSelected: {
+      backgroundColor: '#fff',
+    },
+
+    drinkText: {
+      color: '#fff',
+      textAlign: 'center',
+    },
+
+    drinkTextSelected: {
+      color: '#000',
+      textAlign: 'center',
+    },
+  });
